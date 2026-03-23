@@ -46,7 +46,7 @@ Searches Gmail for the most recent email whose subject contains `subject` (case-
 
 ---
 
-## generate_reply(email_content: str) → str
+## generate_reply(email_content: str, from_: str, config: Config, user_email: str = "", user_name: str = "", feedback: str = "") → ReplyResult
 
 Calls the OpenAI API to generate a reply to the given email body.
 
@@ -54,25 +54,31 @@ Calls the OpenAI API to generate a reply to the given email body.
 
 ```json
 {
-  "email_content": "string — plain text email body, non-empty"
+  "email_content": "string — plain text email body, non-empty",
+  "from_": "string — sender address of the original email, non-empty",
+  "config": "Config — application config (provides OpenAI key and model)",
+  "user_email": "string — the authenticated user's email address, used to sign the reply (optional)",
+  "user_name": "string — the authenticated user's display name, used to sign the reply (optional)",
+  "feedback": "string — revision instructions from the user; empty string for first draft (optional)"
 }
 ```
 
-### Output
+`user_email` and `user_name` are fetched from the Gmail user profile so the generated reply is signed correctly. They are optional — the model falls back to generic attribution when omitted.
+
+### Output (ReplyResult)
 
 ```json
 {
-  "reply": "string — generated reply text, plain text, non-empty"
+  "reply": "string — generated reply text, plain text, non-empty",
+  "recipient": "string — email address the reply should be sent to"
 }
 ```
-
-The function returns a plain `str` (the reply text), not a wrapper object.
 
 ### Errors
 
 | Condition | Exception |
 |---|---|
-| `email_content` is empty or not a string | `ValueError` |
+| `email_content` or `from_` is empty or not a string | `ValueError` |
 | OpenAI API key missing or invalid | `OpenAIError` |
 | OpenAI API returns empty or null content | `OpenAIError` |
 | OpenAI API rate limit or network failure | `OpenAIError` |
@@ -82,6 +88,7 @@ The function returns a plain `str` (the reply text), not a wrapper object.
 - MUST use the `gpt-4o` model unless overridden by the `OPENAI_MODEL` environment variable.
 - MUST send a system prompt instructing the model to write a professional email reply.
 - MUST NOT post-process or truncate the model's response before returning it.
+- Uses OpenAI Structured Outputs to guarantee `reply` and `recipient` fields in the response.
 
 ---
 
@@ -131,15 +138,21 @@ Sends `reply` as a reply within the Gmail thread identified by `thread_id`.
 class EmailData:
     message_id: str
     thread_id: str
-    from_: str       # field name: from_ (avoids Python keyword conflict)
+    from_: str            # field name: from_ (avoids Python keyword conflict)
     subject: str
     body: str
     date: str
+    message_id_header: str  # RFC 2822 Message-ID header, used for In-Reply-To threading
 
 @dataclass
 class SendResult:
     success: bool
     sent_message_id: str
+
+@dataclass
+class ReplyResult:
+    reply: str        # generated reply body
+    recipient: str    # email address the reply should be sent to
 
 class EmailNotFoundError(Exception): pass
 class GmailAPIError(Exception): pass

@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -10,6 +10,7 @@ class EmailData:
     body: str
     date: str
     message_id_header: str = ""  # RFC 2822 Message-ID header (for threading)
+    thread_messages: list = field(default_factory=list)  # [{from_, date, body}, ...] oldest-first
 
 
 @dataclass
