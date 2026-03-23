@@ -34,12 +34,17 @@ SYSTEM_PROMPT = (
     "  Pass the user's modification instructions as 'feedback'. "
     "Leave feedback empty for the first draft.\n"
     "- send_email: send the current reply draft.\n"
-    "  Call this only after the user explicitly approves sending.\n\n"
+    "  Call this only after the user explicitly approves sending.\n"
+    "  Pass recipient only when correcting the address after a delivery failure.\n\n"
     "IMPORTANT: After calling generate_reply, do NOT reproduce or paraphrase the draft "
     "in your text response. The draft is already displayed to the user. "
     "Just ask briefly if they would like to send it or make changes.\n\n"
+    "DELIVERY FAILURES: After sending, if the tool result says a delivery failure was "
+    "detected, inform the user clearly that the email may not have been delivered, "
+    "and ask them to provide the correct email address. "
+    "When they provide a corrected address, call send_email with that address as recipient.\n\n"
     "Always confirm with the user before sending. "
-    "After sending, ask if they need anything else."
+    "After sending successfully, ask if they need anything else."
 )
 
 # ---------------------------------------------------------------------------
@@ -98,12 +103,19 @@ ALL_TOOLS = [
         "function": {
             "name": "send_email",
             "description": (
-                "Send the current reply draft to the recipient. "
-                "Call this only when the user explicitly approves sending."
+                "Send the current reply draft. "
+                "Call this only when the user explicitly approves sending. "
+                "recipient is only needed to correct the address after a delivery failure — "
+                "otherwise the recipient from generate_reply is used."
             ),
             "parameters": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "recipient": {
+                        "type": "string",
+                        "description": "Corrected recipient address. Only pass this after a delivery failure.",
+                    }
+                },
                 "required": [],
                 "additionalProperties": False,
             },
@@ -193,23 +205,37 @@ def _exec_generate_reply(feedback: str, state: ExecState, config: Config) -> str
     return f"Reply drafted. To: {result.recipient}"
 
 
-def _exec_send_email(state: ExecState, config: Config) -> str:
+def _exec_send_email(state: ExecState, config: Config, recipient: str = "") -> str:
     if not state.reply:
         return "No reply has been drafted yet. Draft a reply first."
     if state.email is None:
         return "No email context available."
+    if recipient:
+        state.recipient = recipient.strip()
+    import time
+    sent_at = time.time()
     try:
-        from tools.gmail_send import send_reply
+        from tools.gmail_send import check_delivery_failure, send_reply
         result = send_reply(state.email, state.reply, config, recipient=state.recipient)
-        if result.success:
-            return f"Reply sent successfully to {state.recipient}."
-        return "Send failed — the email was not delivered."
+        if not result.success:
+            return "Send failed — the email was not delivered."
     except (GmailAPIError, SendFailedError) as e:
         logger.error("Send failed: %s", e)
         return f"Send failed: {e}"
     except Exception as e:
         logger.error("Send failed unexpectedly: %s", e)
         return f"Send failed: {e}"
+
+    # Email accepted by Gmail — now check for a bounce notification.
+    print("Checking delivery status (this may take a few seconds)...")
+    bounced = check_delivery_failure(config, sent_at=sent_at, recipient=state.recipient)
+    if bounced:
+        return (
+            f"Reply sent to {state.recipient}, but a delivery failure notification was detected. "
+            "The email address may be incorrect. "
+            "Please ask the user to provide the correct email address."
+        )
+    return f"Reply sent successfully to {state.recipient}."
 
 
 def _execute_tool(call, state: ExecState, config: Config) -> str:
@@ -226,7 +252,7 @@ def _execute_tool(call, state: ExecState, config: Config) -> str:
     if name == "generate_reply":
         return _exec_generate_reply(args.get("feedback", ""), state, config)
     if name == "send_email":
-        return _exec_send_email(state, config)
+        return _exec_send_email(state, config, recipient=args.get("recipient", ""))
     return f"Unknown tool: {name}"
 
 

@@ -1,6 +1,7 @@
 """Gmail send tool — sends an approved reply as a threaded Gmail message."""
 import base64
 import logging
+import time
 from email.header import Header
 from email.mime.text import MIMEText
 from email.utils import formataddr, parseaddr
@@ -62,3 +63,44 @@ def send_reply(email: EmailData, reply_body: str, config: Config, recipient: str
     sent_id = sent.get("id", "")
     logger.debug("Reply sent message_id=%s", sent_id)
     return SendResult(success=True, sent_message_id=sent_id)
+
+
+def check_delivery_failure(config: Config, sent_at: float, recipient: str, wait_seconds: int = 8) -> bool:
+    """Wait briefly, then check Gmail for a bounce / delivery-failure notification.
+
+    Only considers messages received after sent_at (Unix timestamp) whose
+    snippet mentions the recipient address, to avoid false positives from
+    delayed bounces belonging to earlier sends.
+    Returns True if a delivery failure for this recipient is detected, False otherwise.
+    """
+    time.sleep(wait_seconds)
+    service = _build_service(config)
+    after_ts = int(sent_at)
+    query = (
+        f"after:{after_ts} "
+        "("
+        "from:mailer-daemon "
+        "OR subject:\"delivery failed\" "
+        "OR subject:\"Delivery Status Notification\" "
+        "OR subject:\"Undeliverable\""
+        ")"
+    )
+    try:
+        result = service.users().messages().list(userId="me", q=query, maxResults=5).execute()
+        messages = result.get("messages", [])
+        if not messages:
+            return False
+        # Confirm at least one bounce mentions the recipient we sent to.
+        recipient_addr = recipient.lower().strip()
+        for msg in messages:
+            detail = service.users().messages().get(
+                userId="me", id=msg["id"], format="metadata",
+                metadataHeaders=["To", "Subject"],
+            ).execute()
+            snippet = detail.get("snippet", "").lower()
+            if recipient_addr in snippet:
+                return True
+        return False
+    except HttpError as e:
+        logger.warning("Bounce check failed: %s", e)
+        return False
