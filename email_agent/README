@@ -59,7 +59,24 @@ pip install -r requirements.txt
 
 ---
 
-# 4. Add Gmail Credentials
+# 4. Environment Setup
+
+The application uses environment variables to manage sensitive credentials. You must create a `.env` file in the root directory of the project with the following variables:
+
+```bash
+# Path to your Google Cloud credentials JSON file
+GMAIL_CREDENTIALS_PATH=credentials/gmail_credentials.json
+
+# Path where the OAuth2 token will be stored/read from
+GMAIL_TOKEN_PATH=credentials/token.json
+
+# Your OpenAI API Key
+OPENAI_API_KEY=your_openai_api_key_here
+```
+
+---
+
+# 5. Add Gmail Credentials
 
 Before running the project, place your Gmail OAuth credentials file in the following location:
 
@@ -86,7 +103,7 @@ If you do not yet have this file, follow the setup guide here:
 
 ---
 
-# 5. Run the Application
+# 6. Run the Application
 
 Run the program with:
 
@@ -100,7 +117,7 @@ After you approve access, a token file will be created locally so you will not n
 
 ---
 
-# 6. Authentication Files
+# 7. Authentication Files
 
 After the first successful login, the project will generate a file similar to:
 
