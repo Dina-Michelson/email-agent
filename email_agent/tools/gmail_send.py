@@ -14,17 +14,18 @@ from tools.gmail_search import _build_service
 logger = logging.getLogger(__name__)
 
 
-def send_reply(email: EmailData, reply_body: str, config: Config) -> SendResult:
+def send_reply(email: EmailData, reply_body: str, config: Config, recipient: str = "") -> SendResult:
     """Send reply_body as a threaded reply to email.
 
     Sets In-Reply-To and References so Gmail groups it into the same thread.
+    recipient overrides the auto-derived to_address when provided.
     """
     if not reply_body or not reply_body.strip():
         raise ValueError("reply_body must be a non-empty string")
 
     service = _build_service(config)
 
-    to_address = email.from_
+    to_address = recipient.strip() if recipient.strip() else email.from_
     subject = email.subject if email.subject.lower().startswith("re:") else f"Re: {email.subject}"
 
     name, addr = parseaddr(to_address)
@@ -34,9 +35,13 @@ def send_reply(email: EmailData, reply_body: str, config: Config) -> SendResult:
     mime["To"] = encoded_to
     mime["Subject"] = subject
 
-    if email.message_id_header:
-        mime["In-Reply-To"] = email.message_id_header
-        mime["References"] = email.message_id_header
+    # Build References from all message IDs in the thread (required for inbox conversation grouping)
+    all_ids = [m.get("message_id_header", "") for m in email.thread_messages if m.get("message_id_header")]
+    if not all_ids and email.message_id_header:
+        all_ids = [email.message_id_header]
+    if all_ids:
+        mime["In-Reply-To"] = all_ids[-1]
+        mime["References"] = " ".join(all_ids)
 
     raw = base64.urlsafe_b64encode(mime.as_bytes()).decode("ascii")
     body = {"raw": raw, "threadId": email.thread_id}

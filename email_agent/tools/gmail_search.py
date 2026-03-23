@@ -30,12 +30,28 @@ def get_user_profile(config: Config) -> tuple[str, str]:
         send_as_list = service.users().settings().sendAs().list(userId="me").execute()
         for alias in send_as_list.get("sendAs", []):
             if alias.get("isPrimary"):
-                return alias["sendAsEmail"], alias.get("displayName", "")
+                email = alias["sendAsEmail"]
+                name = alias.get("displayName", "").strip()
+                if not name:
+                    name = _name_from_email(email)
+                return email, name
         # Fallback: no primary alias found, use getProfile for email only
         profile = service.users().getProfile(userId="me").execute()
-        return profile["emailAddress"], ""
+        email = profile["emailAddress"]
+        return email, _name_from_email(email)
     except HttpError as e:
         raise GmailAPIError(_http_error_message(e)) from e
+
+
+def _name_from_email(email: str) -> str:
+    """Derive a best-effort display name from an email address local part.
+
+    e.g. 'dany.labovich@gmail.com' -> 'Dany Labovich'
+         'danylabovich@gmail.com'   -> 'Danylabovich'
+    """
+    local = email.split("@")[0]
+    parts = local.replace(".", " ").replace("_", " ").replace("-", " ").split()
+    return " ".join(p.capitalize() for p in parts)
 
 
 def search_email(subject: str, config: Config) -> EmailData:
@@ -64,16 +80,37 @@ def search_email(subject: str, config: Config) -> EmailData:
     if not body:
         raise GmailAPIError("Could not extract plain text body")
 
-    logger.debug("Found email message_id=%s from=%s", message["id"], from_)
+    thread_id = message["threadId"]
+    thread_messages = _fetch_thread_messages(service, thread_id)
+    logger.debug("Found email message_id=%s from=%s thread_len=%d", message["id"], from_, len(thread_messages))
     return EmailData(
         message_id=message["id"],
-        thread_id=message["threadId"],
+        thread_id=thread_id,
         from_=from_,
         subject=subject_header,
         body=body,
         date=date,
         message_id_header=message_id_header,
+        thread_messages=thread_messages,
     )
+
+
+def _fetch_thread_messages(service, thread_id: str) -> list:
+    """Return all messages in a thread as dicts, oldest-first."""
+    try:
+        thread = service.users().threads().get(
+            userId="me", id=thread_id, format="full"
+        ).execute()
+    except HttpError as e:
+        logger.warning("Could not fetch thread %s: %s", thread_id, e)
+        return []
+    result = []
+    for msg in thread.get("messages", []):
+        payload = msg.get("payload", {})
+        from_, _, date, message_id_header = _parse_headers(payload.get("headers", []))
+        body = _extract_body(payload)
+        result.append({"from_": from_, "date": date, "body": body, "message_id_header": message_id_header})
+    return result
 
 
 def _build_service(config: Config):

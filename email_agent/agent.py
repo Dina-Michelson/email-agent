@@ -35,6 +35,9 @@ SYSTEM_PROMPT = (
     "Leave feedback empty for the first draft.\n"
     "- send_email: send the current reply draft.\n"
     "  Call this only after the user explicitly approves sending.\n\n"
+    "IMPORTANT: After calling generate_reply, do NOT reproduce or paraphrase the draft "
+    "in your text response. The draft is already displayed to the user. "
+    "Just ask briefly if they would like to send it or make changes.\n\n"
     "Always confirm with the user before sending. "
     "After sending, ask if they need anything else."
 )
@@ -133,6 +136,13 @@ def _exec_search_email(subject: str, state: ExecState, config: Config) -> str:
         logger.error("Gmail search failed: %s", e)
         return f"Gmail search failed: {e}"
     e = state.email
+    msgs = e.thread_messages if e.thread_messages else [{"from_": e.from_, "date": e.date, "body": e.body}]
+    if len(msgs) > 1:
+        thread_text = "\n\n".join(
+            f"Message {i + 1} — From: {m['from_']}, Date: {m['date']}:\n{_sanitize(m['body'])}"
+            for i, m in enumerate(msgs)
+        )
+        return f"Email thread found ({len(msgs)} messages).\nSubject: {e.subject}\n\n{thread_text}"
     return (
         f"Email found.\n"
         f"From: {e.from_}\nDate: {e.date}\nSubject: {e.subject}\nBody:\n{_sanitize(e.body)}"
@@ -147,10 +157,28 @@ def _exec_generate_reply(feedback: str, state: ExecState, config: Config) -> str
             state.sender_email, state.sender_name = get_user_profile(config)
         except GmailAPIError:
             pass
+
+    # Build full thread text so the LLM has complete context
+    msgs = state.email.thread_messages
+    if msgs:
+        thread_text = "\n\n".join(
+            f"Message {i + 1} — From: {m['from_']}, Date: {m['date']}:\n{m['body']}"
+            for i, m in enumerate(msgs)
+        )
+        # The "other party" is whichever address in the thread is not the authenticated user
+        other_party = state.email.from_
+        for m in reversed(msgs):
+            if state.sender_email and state.sender_email not in m["from_"]:
+                other_party = m["from_"]
+                break
+    else:
+        thread_text = state.email.body
+        other_party = state.email.from_
+
     try:
         result = generate_reply(
-            state.email.body,
-            state.email.from_,
+            thread_text,
+            other_party,
             config,
             user_email=state.sender_email,
             user_name=state.sender_name,
@@ -161,7 +189,8 @@ def _exec_generate_reply(feedback: str, state: ExecState, config: Config) -> str
         return f"Failed to generate reply: {e}"
     state.reply = result.reply
     state.recipient = result.recipient
-    return f"Reply drafted.\nTo: {result.recipient}\n---\n{result.reply}\n---"
+    # Return only a brief summary — the full reply is already printed by _print_reply
+    return f"Reply drafted. To: {result.recipient}"
 
 
 def _exec_send_email(state: ExecState, config: Config) -> str:
@@ -171,7 +200,7 @@ def _exec_send_email(state: ExecState, config: Config) -> str:
         return "No email context available."
     try:
         from tools.gmail_send import send_reply
-        result = send_reply(state.email, state.reply, config)
+        result = send_reply(state.email, state.reply, config, recipient=state.recipient)
         if result.success:
             return f"Reply sent successfully to {state.recipient}."
         return "Send failed — the email was not delivered."
@@ -232,12 +261,30 @@ def _format_body(body: str) -> str:
 
 def _print_email(e) -> None:
     width = 60
+    msgs = e.thread_messages if e.thread_messages else [{"from_": e.from_, "date": e.date, "body": e.body}]
     print(f"\n{'─' * width}")
-    print(f"  From:    {e.from_}")
-    print(f"  Date:    {e.date}")
     print(f"  Subject: {e.subject}")
+    if len(msgs) > 1:
+        print(f"  Thread:  {len(msgs)} messages")
     print(f"{'─' * width}")
-    print(_format_body(e.body))
+    for i, msg in enumerate(msgs):
+        if len(msgs) > 1:
+            print(f"\n  [{i + 1}/{len(msgs)}] From: {msg['from_']}  |  {msg['date']}")
+            print(f"  {'·' * (width - 2)}")
+        else:
+            print(f"  From:    {msg['from_']}")
+            print(f"  Date:    {msg['date']}")
+            print()
+        print(_format_body(msg["body"]))
+    print(f"{'─' * width}\n")
+
+
+def _print_reply(reply: str, recipient: str) -> None:
+    width = 60
+    print(f"\nAgent: Here is my suggested reply:")
+    print(f"  To: {recipient}")
+    print(f"{'─' * width}")
+    print(reply)
     print(f"{'─' * width}\n")
 
 
@@ -367,6 +414,8 @@ def run(config: Config) -> None:
                 if call.function.name == "search_email" and state.email is not None:
                     print(f"Agent: Found an email from {state.email.from_}:")
                     _print_email(state.email)
+                elif call.function.name == "generate_reply" and state.reply:
+                    _print_reply(state.reply, state.recipient)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": call.id,

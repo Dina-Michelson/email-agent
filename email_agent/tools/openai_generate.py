@@ -10,9 +10,15 @@ from models import OpenAIError, ReplyResult
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
-    "You are a professional assistant that writes clear, polite, and concise "
-    "email replies. The recipient should normally be the sender of the original "
-    "email unless the user explicitly requests a different recipient."
+    "You are a professional assistant that writes clear, polite, and concise emails. "
+    "You will be given the email thread and told who the author of the new email is. "
+    "IMPORTANT: You are always writing ON BEHALF of the stated author — never impersonate "
+    "anyone else or write as if you are a different person. "
+    "Always sign the email with the author's name exactly as provided. "
+    "If the last message in the thread was already sent BY the author, write a follow-up "
+    "or continuation from that same author — do NOT fabricate a response from another party. "
+    "The recipient should normally be the other party in the thread unless explicitly told otherwise."
+    "only draft one response"
 )
 
 
@@ -30,7 +36,7 @@ def generate_reply(
         raise ValueError("from_ must be a non-empty string")
 
     client = openai.OpenAI(api_key=config.openai_api_key)
-
+    print("current username:", user_name)
     if user_name.strip() and user_email.strip():
         author_line = f"{user_name} <{user_email}>"
     elif user_name.strip():
@@ -40,18 +46,23 @@ def generate_reply(
     else:
         author_line = "You"
 
+    author_instructions = (
+        f"You are writing this email AS: {author_line}\n"
+        f"Sign the email with this name. Never write as anyone else."
+    )
+
     if feedback.strip():
         user_message = (
-            f"Original email:\n{email_content}\n\n"
-            f"Sender: {from_}\n"
-            f"Author of the reply: {author_line}\n\n"
-            f"User feedback:\n{feedback}"
+            f"{author_instructions}\n\n"
+            f"Other party in the thread: {from_}\n\n"
+            f"Email thread:\n{email_content}\n\n"
+            f"Revision instructions:\n{feedback}"
         )
     else:
         user_message = (
-            f"Original email:\n{email_content}\n\n"
-            f"Sender: {from_}\n"
-            f"Author of the reply: {author_line}"
+            f"{author_instructions}\n\n"
+            f"Other party in the thread: {from_}\n\n"
+            f"Email thread:\n{email_content}"
         )
 
     messages = [
