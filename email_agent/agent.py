@@ -139,7 +139,8 @@ class ExecState:
 # Tool executors — each returns a plain string that goes into message history
 # ---------------------------------------------------------------------------
 
-def _exec_search_email(subject: str, state: ExecState, config: Config) -> str:
+def _exec_search_email(args: dict, state: ExecState, config: Config) -> str:
+    subject = args.get("subject", "")
     try:
         state.email = search_email(subject, config)
     except EmailNotFoundError:
@@ -161,7 +162,8 @@ def _exec_search_email(subject: str, state: ExecState, config: Config) -> str:
     )
 
 
-def _exec_generate_reply(feedback: str, state: ExecState, config: Config) -> str:
+def _exec_generate_reply(args: dict, state: ExecState, config: Config) -> str:
+    feedback = args.get("feedback", "")
     if state.email is None:
         return "No email has been found yet. Search for an email first."
     if not state.sender_name and not state.sender_email:
@@ -205,7 +207,8 @@ def _exec_generate_reply(feedback: str, state: ExecState, config: Config) -> str
     return f"Reply drafted. To: {result.recipient}"
 
 
-def _exec_send_email(state: ExecState, config: Config, recipient: str = "") -> str:
+def _exec_send_email(args: dict, state: ExecState, config: Config) -> str:
+    recipient = args.get("recipient", "")
     if not state.reply:
         return "No reply has been drafted yet. Draft a reply first."
     if state.email is None:
@@ -238,6 +241,13 @@ def _exec_send_email(state: ExecState, config: Config, recipient: str = "") -> s
     return f"Reply sent successfully to {state.recipient}."
 
 
+_TOOL_REGISTRY: dict = {
+    "search_email": _exec_search_email,
+    "generate_reply": _exec_generate_reply,
+    "send_email": _exec_send_email,
+}
+
+
 def _execute_tool(call, state: ExecState, config: Config) -> str:
     name = call.function.name
     try:
@@ -247,13 +257,10 @@ def _execute_tool(call, state: ExecState, config: Config) -> str:
 
     logger.debug("Executing tool=%s args=%s", name, args)
 
-    if name == "search_email":
-        return _exec_search_email(args.get("subject", ""), state, config)
-    if name == "generate_reply":
-        return _exec_generate_reply(args.get("feedback", ""), state, config)
-    if name == "send_email":
-        return _exec_send_email(state, config, recipient=args.get("recipient", ""))
-    return f"Unknown tool: {name}"
+    executor = _TOOL_REGISTRY.get(name)
+    if executor is None:
+        return f"Unknown tool: {name}"
+    return executor(args, state, config)
 
 
 def _format_body(body: str) -> str:
