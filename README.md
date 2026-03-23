@@ -7,20 +7,15 @@ This section explains how to set up and run the project **on Windows**.
 This project requires **Gmail API credentials** in order to send and modify emails.
 
 You will need to place a credentials file in the project before running the application.
-
-If you have **not created Gmail credentials yet**, follow the guide here:
-
-➡️ **[Jump to Gmail Setup Instructions](#gmail-api-setup-using-your-own-gmail-account)**
-
----
+Instructions will be provided.
 
 # 1. Clone the Repository
 
 Open **PowerShell** or **Command Prompt** and run:
 
 ```bash
-git clone <repository-url>
-cd <repository-folder>
+git clone https://github.com/Dina-Michelson/email-agent.git
+cd email_agent
 ```
 
 ---
@@ -99,7 +94,7 @@ project-root
 
 If you do not yet have this file, follow the setup guide here:
 
-➡️ **[Jump to Gmail Setup Instructions](#gmail-api-setup-using-your-own-gmail-account)**
+➡️ **[Jump to Gmail Setup Instructions](#quick-gmail-setup)**
 
 ---
 
@@ -133,15 +128,10 @@ Your `.gitignore` should include:
 
 ```
 credentials/
+.env
 ```
 
 ---
-
-# Next Step
-
-If you have not yet created your Gmail credentials, continue here:
-
-➡️ **[Gmail API Setup Instructions](#gmail-api-setup-using-your-own-gmail-account)**
 
 
 # Quick Gmail Setup 
@@ -295,7 +285,12 @@ The implementation assumes the environment is authorized for processing the prov
 * **Decision:** Automatic PII (Personally Identifiable Information) redaction or data masking is not included.
 * **Reasoning:** In a production setting, the "human-in-the-loop" approval step implemented here serves as the primary safeguard.
 
-### 6. Rate Limits and Robustness
-The system implements standard error handling for API failures.
-* **Decision:** High-complexity resilience patterns, such as exponential backoff or circuit breakers, were considered out of scope.
-* **Reasoning:** The current implementation focuses on "graceful failure" (notifying the user of an error) rather than automated infrastructure recovery.
+### 6. No-Reply and Phishing Emails
+The agent does not filter out no-reply senders or identify phishing attempts.
+* **Decision:** Emails from addresses such as `no-reply@...` are processed the same as regular emails. No phishing detection or sender reputation checks are performed.
+* **Reasoning:** Robust spam/phishing filtering and no-reply detection are infrastructure-level concerns (typically handled by the email provider) and are outside the scope of this exercise.
+
+### 7. Duplicate Subjects
+When multiple emails share the same subject line, only the most recent one is processed.
+* **Decision:** If two or more emails have identical subjects, the agent selects the most recently received message and ignores the older ones.
+* **Reasoning:** Processing duplicate threads would produce redundant or conflicting replies. Taking the latest message is the safest default while keeping the implementation simple.
