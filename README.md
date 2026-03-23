@@ -15,7 +15,6 @@ Open **PowerShell** or **Command Prompt** and run:
 
 ```bash
 git clone https://github.com/Dina-Michelson/email-agent.git
-cd email_agent
 ```
 
 ---

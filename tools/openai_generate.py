@@ -14,7 +14,7 @@ SYSTEM_PROMPT = (
     "You will be given the email thread and told who the author of the new email is. "
     "IMPORTANT: You are always writing ON BEHALF of the stated author — never impersonate "
     "anyone else or write as if you are a different person. "
-    "Always sign the email with the author's name exactly as provided. "
+    "Always sign the email with only the author's first name. "
     "If the last message in the thread was already sent BY the author, write a follow-up "
     "or continuation from that same author — do NOT fabricate a response from another party. "
     "The recipient should normally be the other party in the thread unless explicitly told otherwise."
@@ -36,7 +36,6 @@ def generate_reply(
         raise ValueError("from_ must be a non-empty string")
 
     client = openai.OpenAI(api_key=config.openai_api_key)
-    print("current username:", user_name)
     if user_name.strip() and user_email.strip():
         author_line = f"{user_name} <{user_email}>"
     elif user_name.strip():
@@ -46,9 +45,11 @@ def generate_reply(
     else:
         author_line = "You"
 
+    sign_name = user_name.strip().split()[0] if user_name.strip() else author_line
+
     author_instructions = (
         f"You are writing this email AS: {author_line}\n"
-        f"Sign the email with this name. Never write as anyone else."
+        f"Sign the email with just the first name: {sign_name}. Never write as anyone else."
     )
 
     if feedback.strip():
