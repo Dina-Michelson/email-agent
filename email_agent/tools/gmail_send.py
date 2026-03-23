@@ -1,7 +1,9 @@
 """Gmail send tool — sends an approved reply as a threaded Gmail message."""
 import base64
 import logging
+from email.header import Header
 from email.mime.text import MIMEText
+from email.utils import formataddr, parseaddr
 
 from googleapiclient.errors import HttpError
 
@@ -25,8 +27,11 @@ def send_reply(email: EmailData, reply_body: str, config: Config) -> SendResult:
     to_address = email.from_
     subject = email.subject if email.subject.lower().startswith("re:") else f"Re: {email.subject}"
 
+    name, addr = parseaddr(to_address)
+    encoded_to = formataddr((str(Header(name, "utf-8")) if name else "", addr))
+
     mime = MIMEText(reply_body, "plain", "utf-8")
-    mime["To"] = to_address
+    mime["To"] = encoded_to
     mime["Subject"] = subject
 
     if email.message_id_header:
@@ -42,6 +47,7 @@ def send_reply(email: EmailData, reply_body: str, config: Config) -> SendResult:
         sent = service.users().messages().send(userId="me", body=body).execute()
     except HttpError as e:
         status = e.resp.status
+        logger.error("Gmail send HttpError %s: %s", status, e.content)
         if status == 401:
             raise GmailAPIError("Gmail authentication failed: 401") from e
         if status == 429:

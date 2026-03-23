@@ -47,7 +47,7 @@ def search_email(subject: str, config: Config) -> EmailData:
 
     try:
         result = service.users().messages().list(
-            userId="me", q=f"subject:{subject}", maxResults=3
+            userId="me", q=f"subject:{subject}", maxResults=1
         ).execute()
     except HttpError as e:
         raise GmailAPIError(_http_error_message(e)) from e
