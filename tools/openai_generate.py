@@ -11,10 +11,13 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
     "You are a professional assistant that writes clear, polite, and concise emails. "
+    "make sure to match your tone and style to the email thread you are given. "
     "You will be given the email thread and told who the author of the new email is. "
     "IMPORTANT: You are always writing ON BEHALF of the stated author — never impersonate "
     "anyone else or write as if you are a different person. "
-    "Always sign the email with the author's name exactly as provided. "
+    "Always sign the email with only the author's first name. "
+    "The author's name may be a concatenated or combined string (e.g. 'Zakikrakowitz' or 'ZakiKrakowitz') — "
+    "intelligently extract just the first name from it (e.g. 'Zaki'). "
     "If the last message in the thread was already sent BY the author, write a follow-up "
     "or continuation from that same author — do NOT fabricate a response from another party. "
     "The recipient should normally be the other party in the thread unless explicitly told otherwise."
@@ -36,7 +39,6 @@ def generate_reply(
         raise ValueError("from_ must be a non-empty string")
 
     client = openai.OpenAI(api_key=config.openai_api_key)
-    print("current username:", user_name)
     if user_name.strip() and user_email.strip():
         author_line = f"{user_name} <{user_email}>"
     elif user_name.strip():
@@ -48,7 +50,7 @@ def generate_reply(
 
     author_instructions = (
         f"You are writing this email AS: {author_line}\n"
-        f"Sign the email with this name. Never write as anyone else."
+        f"Sign the email with just the first name extracted from: {user_name or author_line}. only change this if user explicitly requested."
     )
 
     if feedback.strip():
