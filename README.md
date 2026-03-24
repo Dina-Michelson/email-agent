@@ -279,8 +279,8 @@ This project focuses on the core requirements of the assessment: an agent that o
 
 ### 1. Email Attachments
 The agent processes email metadata and body text only.
-* **Decision:** Attachments are excluded from this implementation.
-* **Reasoning:** Proper handling involves complex MIME parsing, binary storage, and security filtering which are outside the functional scope of this exercise.
+* **Decision:** Attachments are intentionally excluded.
+* **Reasoning:** Processing attachments requires a dedicated pipeline for file parsing (PDF, DOCX, images), security scanning for malware, and specialized logic to decide which file content is relevant to the LLM prompt. To maintain a lightweight and focused implementation, this was treated as a separate feature set.
 
 ### 2. Recipient Handling (CC / BCC)
 The system defaults to replying to the primary sender while maintaining user control.
@@ -302,10 +302,11 @@ The implementation assumes the environment is authorized for processing the prov
 * **Decision:** Automatic PII (Personally Identifiable Information) redaction or data masking is not included.
 * **Reasoning:** In a production setting, the "human-in-the-loop" approval step implemented here serves as the primary safeguard.
 
-### 6. No-Reply and Phishing Emails
-The agent does not filter out no-reply senders or identify phishing attempts.
-* **Decision:** Emails from addresses such as `no-reply@...` are processed the same as regular emails. No phishing detection or sender reputation checks are performed.
-* **Reasoning:** Robust spam/phishing filtering and no-reply detection are infrastructure-level concerns (typically handled by the email provider) and are outside the scope of this exercise.
+### 6. Automated & Suspicious Emails
+The agent does not internally filter for "no-reply" addresses or perform automated sender classification.
+
+* **Decision:** Advanced sender verification and automated-email detection are excluded.
+* **Reasoning:** In many professional workflows, users may intentionally need to respond to automated systems or "no-reply" aliases (e.g., to trigger a specific support workflow or update a ticket). Instead of the agent unilaterally blocking these interactions, the system provides the user with the **flexibility to manually modify the recipient** before sending, ensuring the agent remains a helpful tool rather than a restrictive filter.
 
 ### 7. Duplicate Subjects
 When multiple emails share the same subject line, only the most recent one is processed.
