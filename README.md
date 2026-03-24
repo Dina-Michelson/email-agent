@@ -67,7 +67,9 @@ GMAIL_TOKEN_PATH=credentials/token.json
 # Add your API key
 OPENAI_API_KEY=your_openai_api_key_here 
 
-OPENAI_MODEL="" #Optional the default in code is gpt4o
+# Optional, the default in code is gpt-4o
+# Code supports only models that support Response Format: Structured Outputs
+OPENAI_MODEL=gpt-4o 
 ```
 
 ---
@@ -75,6 +77,7 @@ OPENAI_MODEL="" #Optional the default in code is gpt4o
 # 5. Add Gmail Credentials
 
 Before running the project, place your Gmail OAuth credentials file in the following location:
+You will need to create credentials folder and rename the credentials json
 
 ```
 credentials/gmail_credentials.json
@@ -83,12 +86,21 @@ credentials/gmail_credentials.json
 Your project structure should look like this:
 
 ```
-project-root
+project-root/
 │
-├── credentials
+├── credentials/
 │   └── gmail_credentials.json
 │
-├── src
+├── tools/
+│   ├── __init__.py
+│   ├── gmail_search.py
+│   ├── gmail_send.py
+│   └── openai_generate.py
+│
+├── agent.py
+├── config.py
+├── models.py
+├── main.py
 ├── requirements.txt
 └── README.md
 ```
@@ -108,6 +120,8 @@ python main.py
 ```
 
 During the **first run**, a browser window will open asking you to authenticate with your Gmail account.
+
+Use only emails you have added under test users
 
 After you approve access, a token file will be created locally so you will not need to authenticate again.
 
@@ -246,7 +260,12 @@ project-root/
 ├── credentials/
 │   └── gmail_credentials.json
 │
-└── src/
+├── tools/
+├── agent.py
+├── config.py
+├── models.py
+├── main.py
+└── requirements.txt
 ```
 
 ---
