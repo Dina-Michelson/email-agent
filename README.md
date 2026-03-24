@@ -20,6 +20,8 @@ git clone https://github.com/Dina-Michelson/email-agent.git
 ---
 
 # 2. Create a Python Virtual Environment
+This project was developed with python version 3.12.10
+If you are using a different python version you may need to update the library versions in requirements.txt
 
 Create a virtual environment:
 
