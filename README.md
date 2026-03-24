@@ -64,8 +64,10 @@ GMAIL_CREDENTIALS_PATH=credentials/gmail_credentials.json
 # Path where the OAuth2 token will be stored/read from
 GMAIL_TOKEN_PATH=credentials/token.json
 
-# Your OpenAI API Key
-OPENAI_API_KEY=your_openai_api_key_here
+# Add your API key
+OPENAI_API_KEY=your_openai_api_key_here 
+
+OPENAI_MODEL="" #Optional the default in code is gpt4o
 ```
 
 ---
@@ -132,7 +134,7 @@ credentials/
 
 ---
 
-
+<a name="quick-gmail-setup"></a> 
 # Quick Gmail Setup 
 
 To allow the application to access **your Gmail account**, you must create Google Cloud credentials and enable the Gmail API.
@@ -141,14 +143,11 @@ To allow the application to access **your Gmail account**, you must create Googl
 
 ## 1. Create a Google Cloud Project
 
-1. Go to
-   https://console.cloud.google.com/
+1. Go to https://console.cloud.google.com/
 
-2. Click **Select Project → New Project**
+2. Create a new project (example: `gmail-agent`)
 
-3. Create a project (example: `gmail-agent`)
-
-4. Make sure the project is **selected**
+3. Make sure the project is **selected**
 
 ---
 
@@ -178,7 +177,7 @@ Configure it with:
 User Type: External
 App Name: anything
 Support Email: your email
-Developer Email: your email
+Developer Email: your email (Contact information)
 ```
 
 Save and continue through the setup.
@@ -207,7 +206,7 @@ Add your Gmail address under **Test Users**.
 Example:
 
 ```
-your-email@gmail.com
+test-user@gmail.com
 ```
 
 Save.
